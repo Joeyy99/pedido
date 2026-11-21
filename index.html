@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Completa tu pedido</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1c1c1a;--mut:#6a6a64;--bd:#d8d6cf;--ac:#1f6f5c;--card:#efede6}
+@media(prefers-color-scheme:dark){:root{--bg:#161715;--fg:#efeee9;--mut:#a3a29a;--bd:#3a3b37;--ac:#4fb59a;--card:#222320}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:460px;margin:0 auto;padding:22px 16px 48px}
+h1{font-size:1.35rem;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 14px;font-size:.92rem}
+.prod{background:var(--card);border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;gap:12px}
+.prod b{display:block}.prod span{color:var(--mut);font-size:.88rem}
+label{display:block;font-size:.85rem;color:var(--mut);margin:14px 0 4px}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.row{display:flex;gap:10px}.row>div{flex:1}
+button{width:100%;margin-top:20px;padding:14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:600 1rem system-ui,sans-serif;cursor:pointer}
+button:disabled{opacity:.6}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:.85rem;color:var(--mut);margin-top:16px}
+.chk input{width:auto;margin-top:4px}
+#err{color:#b3261e;font-size:.92rem;margin-top:12px;min-height:1.2em}
+.hp{position:absolute;left:-9999px}
+</style>
+</head>
+<body>
+<main>
+<h1>Completa tu pedido</h1>
+<p class="sub">Pagas al recibir. Revisa tus datos: con ellos te llega el pedido.</p>
+<div class="prod"><div><b id="pn"></b><span id="pv"></span></div><div><b id="pt"></b><span>pago contra entrega</span></div></div>
+
+<form id="f" novalidate>
+<div class="row">
+<div><label for="nombres">Nombres</label><input id="nombres" autocomplete="given-name" required></div>
+<div><label for="apellidos">Apellidos</label><input id="apellidos" autocomplete="family-name" required></div>
+</div>
+<label for="telefono">Celular (WhatsApp)</label>
+<input id="telefono" type="tel" inputmode="numeric" placeholder="0991234567" autocomplete="tel" required>
+<div class="row">
+<div><label for="provincia">Provincia</label><select id="provincia" required><option value="">Elige</option></select></div>
+<div><label for="ciudad">Ciudad</label><input id="ciudad" autocomplete="address-level2" required></div>
+</div>
+<label for="direccion">Dirección y complementos</label>
+<input id="direccion" autocomplete="street-address" placeholder="Calle principal, número y calle secundaria" required>
+<label for="referencia">Referencia para el repartidor</label>
+<input id="referencia" placeholder="Ej.: casa verde, frente a la tienda" required>
+<div class="row">
+<div><label for="cantidad">Cantidad</label><input id="cantidad" type="number" min="1" max="10" value="1"></div>
+<div><label for="correo">Correo (opcional)</label><input id="correo" type="email" autocomplete="email"></div>
+</div>
+<label for="notas">Notas (opcional)</label>
+<textarea id="notas" rows="2"></textarea>
+<input class="hp" id="web" tabindex="-1" autocomplete="off" aria-hidden="true">
+<label class="chk"><input type="checkbox" id="ok"> Autorizo el uso de mis datos solo para gestionar este pedido.</label>
+<div id="err" role="alert"></div>
+<button id="btn" type="submit">Enviar pedido y confirmar por WhatsApp</button>
+</form>
+</main>
+
+<script>
+// 1) CONFIGURA ESTAS DOS LÍNEAS
+const CONFIG = {
+  WHATSAPP: "593983736563", // tu número con 593, sin + ni espacios
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwrHugyg1iNFz3YKROlyrzIb9BzvBE9zTx2kTRmLzmZX52v8GK-HcKxeHJu8CT8YJhwqA/exec"
+};
+
+const PROVINCIAS = ["Azuay","Bolívar","Cañar","Carchi","Chimborazo","Cotopaxi","El Oro","Esmeraldas","Galápagos","Guayas","Imbabura","Loja","Los Ríos","Manabí","Morona Santiago","Napo","Orellana","Pastaza","Pichincha","Santa Elena","Santo Domingo de los Tsáchilas","Sucumbíos","Tungurahua","Zamora Chinchipe"];
+const q = new URLSearchParams(location.search);
+const producto = q.get("producto") || "Producto";
+const variante = q.get("variante") || "";
+const precio = parseFloat(q.get("precio")) || 0;
+const origen = q.get("o") || "directo";
+const $ = id => document.getElementById(id);
+const dinero = n => "$" + n.toFixed(2);
+
+PROVINCIAS.forEach(p => $("provincia").add(new Option(p, p)));
+$("pn").textContent = producto;
+$("pv").textContent = variante;
+
+function total() { return precio * (parseInt($("cantidad").value) || 1); }
+function pintarTotal() { $("pt").textContent = dinero(total()); }
+$("cantidad").addEventListener("input", pintarTotal);
+pintarTotal();
+
+$("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = $("err"); err.textContent = "";
+  const v = id => $(id).value.trim();
+  let tel = v("telefono").replace(/[\s-]/g, "").replace(/^\+?593/, "0");
+  if (!/^09\d{8}$/.test(tel)) { err.textContent = "El celular debe tener 10 dígitos y empezar con 09."; return; }
+  for (const id of ["nombres","apellidos","provincia","ciudad","direccion","referencia"]) {
+    if (!v(id)) { err.textContent = "Completa todos los campos obligatorios."; $(id).focus(); return; }
+  }
+  if (!$("ok").checked) { err.textContent = "Marca la autorización de datos para continuar."; return; }
+
+  const cant = parseInt(v("cantidad")) || 1;
+  const d = {
+    id: "P" + Date.now().toString(36).toUpperCase().slice(-6),
+    producto, variante, cantidad: cant, precio, total: total(), origen,
+    nombres: v("nombres"), apellidos: v("apellidos"), telefono: tel,
+    provincia: v("provincia"), ciudad: v("ciudad"), direccion: v("direccion"),
+    referencia: v("referencia"), correo: v("correo"), notas: v("notas"), web: v("web")
+  };
+
+  $("btn").disabled = true; $("btn").textContent = "Enviando…";
+  try {
+    await fetch(CONFIG.SCRIPT_URL, { method: "POST", mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(d) });
+  } catch (x) {
+    err.textContent = "No se pudo enviar el pedido. Revisa tu conexión e intenta de nuevo.";
+    $("btn").disabled = false; $("btn").textContent = "Enviar pedido y confirmar por WhatsApp"; return;
+  }
+  const msg = [
+    "Hola, quiero confirmar mi pedido " + d.id,
+    "Producto: " + producto + (variante ? " (" + variante + ")" : "") + " x" + cant,
+    "Total a pagar al recibir: " + dinero(d.total),
+    "Nombre: " + d.nombres + " " + d.apellidos,
+    "Celular: " + tel,
+    "Envío a: " + d.ciudad + ", " + d.provincia,
+    "Dirección: " + d.direccion,
+    "Referencia: " + d.referencia
+  ].join("\n");
+  location.href = "https://wa.me/" + CONFIG.WHATSAPP + "?text=" + encodeURIComponent(msg);
+});
+</script>
+</body>
+</html>
